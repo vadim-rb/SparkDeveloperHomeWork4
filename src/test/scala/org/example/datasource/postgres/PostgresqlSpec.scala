@@ -11,26 +11,33 @@ import java.util.Properties
 
 
 class PostgresqlSpec extends AnyFlatSpec with TestContainerForAll {
-
   override val containerDef = PostgreSQLContainer.Def()
 
   val testTableName = "users"
 
   "PostgreSQL data source" should "read table" in withContainers { postgresServer =>
+    val expectedPartNum = 4
+
     val spark = SparkSession
       .builder()
       .master("local[*]")
       .appName("PostgresReaderJob")
       .getOrCreate()
 
-    spark
-      .read
+    val fromCustomDF = spark.read
       .format("org.example.datasource.postgres")
       .option("url", postgresServer.jdbcUrl)
       .option("user", postgresServer.username)
       .option("password", postgresServer.password)
       .option("tableName", testTableName)
+      .option("partitionSize", expectedPartNum)
       .load()
+
+
+    assert(fromCustomDF.rdd.getNumPartitions == expectedPartNum)
+
+
+    fromCustomDF
       .show()
 
     spark.stop()
@@ -90,5 +97,6 @@ class PostgresqlSpec extends AnyFlatSpec with TestContainerForAll {
 
     lazy val insertDataQuery = s"INSERT INTO $testTableName VALUES $testValues;"
   }
+
 
 }
