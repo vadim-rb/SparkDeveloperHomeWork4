@@ -26,12 +26,10 @@ object ReadFromJDBC extends App {
     .builder()
     .appName("JDBC to DF")
     .config("spark.master", "local")
+    .config("spark.eventLog.enabled", "true")
+    .config("spark.eventLog.dir", "file:///home/vadim/MyExp/spark-logs/event")
     .getOrCreate()
-
-
-
-  // TODO: How to read data from JDBC ?
-
+  spark.sparkContext.setLogLevel("ERROR")
   val pgUrl = "jdbc:postgresql://localhost:5432/spark"
   val employees = "employees"
   val connectionProps = new Properties()
@@ -39,15 +37,13 @@ object ReadFromJDBC extends App {
   connectionProps.put("password", "docker")
   connectionProps.put("driver", "org.postgresql.Driver")
 
-
   val fromPgDF = spark
     .read
     .jdbc(url = pgUrl, table = employees, properties = connectionProps)
 
-  //  read all rows all tables ?
-  fromPgDF.show()
+  //fromPgDF.show()
 
-  println(s"Read row count is ${fromPgDF.count()}")
+  //println(s"Read row count is ${fromPgDF.count()}")
 
   def checkReadTableTimeDF(testDF: DataFrame) =
     spark.time {
@@ -59,6 +55,7 @@ object ReadFromJDBC extends App {
       }
     }
 
+  def printPartitionsNumber(inDF: DataFrame) = println(s"Partition number =  ${inDF.rdd.getNumPartitions}")
   //  checkReadTableTimeDF(fromPgDF) // Time taken: 440 ms
 
   // TODO: How to read data with pruning and projection for example 3 columns and half of the data ?
@@ -75,12 +72,6 @@ object ReadFromJDBC extends App {
 
   //  checkReadTableTimeDF(prunedJdbcDF)  // Time taken: 320 ms
 
-
-  // TODO: How to query data in parallel with column?
-  //  how many partition we have?
-
-
-  def printPartitionsNumber(inDF: DataFrame) = println(s"Partition number =  ${inDF.rdd.getNumPartitions}")
 
   //  printPartitionsNumber(fromPgDF)
 
@@ -100,9 +91,9 @@ object ReadFromJDBC extends App {
     )
   //  prunedParallelJdbcDF.show()
 
-  //  printPartitionsNumber(prunedParallelJdbcDF)
+  //printPartitionsNumber(prunedParallelJdbcDF)
 
-  //  checkReadTableTimeDF(prunedJdbcDF)  // Time taken: 84 ms
+  //checkReadTableTimeDF(prunedJdbcDF)  // Time taken: 84 ms
 
 
   // TODO: How to query data in parallel without column?
@@ -119,15 +110,24 @@ object ReadFromJDBC extends App {
   //  check time and count
   //      predicates = Array("gender = 'F'", "gender = 'M'", "gender = 'M'"))
 
-  printPartitionsNumber(parallelPredicatedDF)
+  //printPartitionsNumber(parallelPredicatedDF)
 
-  checkReadTableTimeDF(parallelPredicatedDF)
+  //checkReadTableTimeDF(parallelPredicatedDF)
 
+  val fromCustomDF = spark.read
+    .format("org.example.datasource.postgres")
+    .option("url", pgUrl)
+    .option("user", "docker")
+    .option("password", "docker")
+    .option("tableName", employees)
+    .option("partitionSize", 4)
+    .load()
+  fromCustomDF.show()
+  println(s"Read row count is ${fromCustomDF.count()}")
 
-  // TODO: How to write data to JDBC source?
+  printPartitionsNumber(fromCustomDF)
 
-
-  // TODO: How to optimize joining data reading/writing to JDBC ?
+  checkReadTableTimeDF(fromCustomDF)
 
 
 }
